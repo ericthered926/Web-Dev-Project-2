@@ -26,6 +26,7 @@
 /*------------------------------------------------------------------------
  *                      CONSTANTS
  */
+const ANIMATION_DURATION = 700;
 const BOTTOM_PADDING = "<br /><br />";
 const CLASS_BOOKS = "books";
 const CLASS_BUTTON = "btn";
@@ -35,6 +36,8 @@ const CLASS_VOLUME = "volume";
 const DIV_BREADCRUMBS = "crumbs";
 const DIV_SCRIPTURES_NAVIGATOR = "scripnav";
 const DIV_SCRIPTURES = "scriptures";
+const DIV_SCRIPTURES1 = "scripdiv1";
+const DIV_SCRIPTURES2 = "scripdiv2";
 const ICON_NEXT = "skip_next";
 const ICON_PREVIOUS = "skip_previous";
 const INDEX_LATITUDE = 3;
@@ -59,9 +62,12 @@ const ZOOM_RATIO = 450;
  *                      PRIVATE VARIABLES
  */
 let books;
+let direction = 3;
 let gmLabels = [];
 let gmMarkers = [];
 let initializedMapLabel = false;
+let offScreenDiv;
+let onScreenDiv;
 let requestedBreadcrumbs;
 let requestedNextPrevious;
 let retryDelay = 500;
@@ -187,9 +193,9 @@ const cacheBooks = function (onInitializedCallback) {
     }
 };
 
-const changeHash = function (volumeId, bookId, chapter) {
+const changeHash = function (volumeId, bookId, chapter, intendedDirection) {
     let newHash = "";
-
+    direction = intendedDirection;
     if (volumeId !== undefined) {
         newHash += volumeId;
 
@@ -261,7 +267,34 @@ const encodedScripturesUrlParameters = function (bookId, chapter, verses, isJst)
 };
 
 const getScripturesCallback = function (chapterHtml) {
-    document.getElementById(DIV_SCRIPTURES).innerHTML = chapterHtml;
+    offScreenDiv.innerHTML = chapterHtml;
+    const width = $(offScreenDiv).width();
+    if (direction === 0) {
+        $(offScreenDiv).css("left", +width);
+        $(offScreenDiv).css({opacity:1});
+        $(offScreenDiv).animate({ left: `-=${width}`}, ANIMATION_DURATION);
+        $(onScreenDiv).animate({ left: `-=${width}`}, ANIMATION_DURATION);
+        direction = 3;
+    }
+    else if (direction === 1) {
+        $(offScreenDiv).css("left", -width);
+        $(offScreenDiv).css({opacity:1});
+        $(offScreenDiv).animate({ left: `+=${width}`}, ANIMATION_DURATION);
+        $(onScreenDiv).animate({ left: `+=${width}`}, ANIMATION_DURATION);
+        direction = 3;
+    }
+    else {
+        $(offScreenDiv).css({opacity:0});
+        $(offScreenDiv).css("left", 0);
+        $(offScreenDiv).animate({ opacity: 1}, ANIMATION_DURATION);
+        $(onScreenDiv).animate({ opacity: 0}, ANIMATION_DURATION);
+    }
+    
+    const temp = onScreenDiv;
+    onScreenDiv = offScreenDiv;
+    offScreenDiv = temp;
+    $(onScreenDiv).css("z-index",1);
+    $(offScreenDiv).css("z-index",0);
     document.querySelectorAll(".navheading").forEach(function (element) {
         element.appendChild(parseHtml(`<div class="nextprev">${requestedNextPrevious}</div>`)[0]);
     });
@@ -303,7 +336,7 @@ const htmlElement = function (tagName, content, classKey) {
     return `<${tagName}${classString}>${content}</${tagName}>`;
 };
 
-const htmlHashLink = function (hashArguments, content, title) {
+const htmlHashLink = function (hashArguments, content, title, dir) {
     let linkConfiguration = {
         content,
         href: "javascript:void(0)",
@@ -355,6 +388,9 @@ const htmlLink = function (parameters) {
 const init = function (onInitializedCallback) {
     let booksLoaded = false;
     let volumesLoaded = false;
+
+    onScreenDiv = document.getElementById(DIV_SCRIPTURES1);
+    offScreenDiv = document.getElementById(DIV_SCRIPTURES2);
 
     fetch(URL_BOOKS).then(function (response) {
         if (response.ok) {
@@ -477,11 +513,19 @@ const navigateChapter = function (bookId, chapter) {
 };
 
 const navigateHome = function (volumeId) {
-    document.getElementById(DIV_SCRIPTURES).innerHTML = htmlDiv({
+    offScreenDiv.innerHTML = htmlDiv({
         id: DIV_SCRIPTURES_NAVIGATOR,
         content: volumesGridContent(volumeId)
     });
-
+    $(offScreenDiv).css({opacity:0});
+    $(offScreenDiv).css("left", 0);
+    $(offScreenDiv).animate({ opacity: 1}, ANIMATION_DURATION);
+    $(onScreenDiv).animate({ opacity: 0}, ANIMATION_DURATION);
+    const temp = onScreenDiv;
+    onScreenDiv = offScreenDiv;
+    offScreenDiv = temp;
+    $(onScreenDiv).css("z-index",1);
+    $(offScreenDiv).css("z-index",0);
     document.getElementById(DIV_BREADCRUMBS).innerHTML = breadcrumbs(volumeForId(volumeId));
 };
 
@@ -519,10 +563,17 @@ const nextChapter = function (bookId, chapter) {
 };
 
 const nextPreviousMarkup = function (nextPrev, icon) {
+    let value;
+    if (icon === "skip_next") {
+        value = 0;
+    }
+    else {
+        value = 1;
+    }
     return htmlHashLink(
-        `0, ${nextPrev[0]}, ${nextPrev[1]}`,
+        `0, ${nextPrev[0]}, ${nextPrev[1]}, ${value}`,
         htmlElement(TAG_ITALICS, icon, CLASS_ICON),
-        nextPrev[2]
+        nextPrev[2],
     );
 };
 
@@ -679,7 +730,16 @@ const transitionBreadcrumbs = function (newCrumbs) {
 };
 
 const transitionScriptures = function (newContent) {
-    document.getElementById(DIV_SCRIPTURES).innerHTML = htmlDiv({content: newContent});
+    offScreenDiv.innerHTML = htmlDiv({content: newContent});
+    $(offScreenDiv).css({opacity:0});
+    $(offScreenDiv).css("left", 0);
+    $(offScreenDiv).animate({ opacity: 1}, ANIMATION_DURATION);
+    $(onScreenDiv).animate({ opacity: 0}, ANIMATION_DURATION);
+    const temp = onScreenDiv;
+    onScreenDiv = offScreenDiv;
+    offScreenDiv = temp;
+    $(onScreenDiv).css("z-index",1);
+    $(offScreenDiv).css("z-index",0);
     setupMarkers(newContent);
 };
 
